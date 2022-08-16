@@ -6,11 +6,11 @@
 A small utility for getting / setting file time
 
 # About
-Usage: {appName} <path> [-c createdTime] [-w lastWriteTime] [-a lastAccessTime] [-t]
+Usage: filetime.exe <path> [-c createdTime] [-w lastWriteTime] [-a lastAccessTime] [-t]
       
 Where:
       
-<path>: input file
+path: input file (required)
       
 -c: change file creation time
       
@@ -21,7 +21,7 @@ Where:
 -t: add random time if only date provided
       
       
-Example: filetime.exe someFile.txt -c 2010-01-01 -w 2020-02-02 -t
+Example: filetime.exe someFile -c 2010-01-01 -w 2020-02-02 -t
 
       
 # Download
