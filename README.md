@@ -7,15 +7,23 @@ A small utility for getting / setting file time
 
 # About
 Usage: {appName} <path> [-c createdTime] [-w lastWriteTime] [-a lastAccessTime] [-t]
+      
 Where:
+      
 <path>: input file
+      
 -c: change file creation time
+      
 -w: change file last write time
+      
 -a: change file last access time
+      
 -t: add random time if only date provided
+      
       
 Example: filetime.exe someFile.txt -c 2010-01-01 -w 2020-02-02 -t
 
+      
 # Download
 
 **The recommended way to get the program is BUILD from source**
