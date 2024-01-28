@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace FileTime {
@@ -33,9 +35,11 @@ namespace FileTime {
       ConsoleEx.WriteLine("\t-w: change file last write time");
       ConsoleEx.WriteLine("\t-a: change file last access time");
       ConsoleEx.WriteLine("\t-t: add random time if only date provided");
+      ConsoleEx.WriteLine("\t-fix: try to set date (and time if exists) from file name");
       
       ConsoleEx.WriteLine();
-      ConsoleEx.WriteLine($"Example: {appName} someFile.txt -c {DateTime.Now.AddYears(-1):s} -m  {DateTime.Now:s} ");
+      ConsoleEx.WriteLine($"Example1: {appName} someFile.txt -c {DateTime.Now.AddYears(-1):s} -m  {DateTime.Now:s} ");
+      ConsoleEx.WriteLine($"Example2: {appName} *.jpg -fix -t");
       ConsoleEx.WriteLine();
     }
 
@@ -58,8 +62,11 @@ namespace FileTime {
         }
 
         var filePath = args[0];
-        if (!File.Exists(filePath)) {
-          ConsoleEx.WriteWarning($"File not found: {filePath}");
+
+        if (string.IsNullOrEmpty(filePath)) {
+          ConsoleEx.WriteWarning("File path is required.");
+          ShowHelpText(asm.GetName().Name);
+          return;
         }
 
         var i = 1;
@@ -108,37 +115,89 @@ namespace FileTime {
             case "-t":
               addRandomTime = true;
               break;
+            case "-fix":
+              creationTime = writeTime = accessTime = DateTime.MaxValue;
+              break;
+            case "-?":
+            case "-h":
+            case "/?":
+              ShowHelpText(asm.GetName().Name);
+              return;
           }
           i++;
         }
 
-        if (creationTime == DateTime.MinValue && writeTime == DateTime.MinValue && accessTime == DateTime.MinValue) {
-          //display current
-          ConsoleEx.WriteMessage($"File '{filePath}' info:");
+        var useFileMask = filePath.Contains("*") || filePath.Contains("!"); 
+        
+        if (useFileMask) {
+
+          var workPath = Path.GetDirectoryName(filePath);
+          if (string.IsNullOrEmpty(workPath))
+            workPath = Path.GetDirectoryName(asm.Location);
+
+          var fileMask = Path.GetFileName(filePath);
+
+          var files = Directory.GetFiles(workPath, fileMask, SearchOption.TopDirectoryOnly).ToList();
+          ConsoleEx.WriteMessage($"Found '{files.Count}' files...");
+          if (files.Count <= 0) return;
+          
+          files.Sort();
+          foreach (var f in files) {
+            SetFileTime(f, creationTime, writeTime, accessTime, addRandomTime);
+          }
         }
         else {
-          //change
-          ConsoleEx.WriteMessage($"File '{filePath}' updated:");
-          if (creationTime != DateTime.MinValue) {
-            var time = CheckTimePart(creationTime, addRandomTime);
-            File.SetCreationTime(filePath, time);
+          if (File.Exists(filePath)) {
+            SetFileTime(filePath, creationTime, writeTime, accessTime, addRandomTime);
           }
-          if (writeTime != DateTime.MinValue) {
-            var time = CheckTimePart(writeTime, addRandomTime);
-            File.SetLastWriteTime(filePath, time);
-          }
-          if (accessTime != DateTime.MinValue) {
-            var time = CheckTimePart(accessTime, addRandomTime);
-            File.SetLastAccessTime(filePath, time);
+          else {
+            ConsoleEx.WriteWarning($"File not found: {filePath}");
           }
         }
-        ConsoleEx.WriteInfo($"\tCreated:  {File.GetCreationTime(filePath):s}");
-        ConsoleEx.WriteInfo($"\tModified: {File.GetLastWriteTime(filePath):s}");
-        ConsoleEx.WriteInfo($"\tAccessed: {File.GetLastAccessTime(filePath):s}");
       }
       catch (Exception ex) {
         ConsoleEx.WriteError(ex);
       }
     }
+
+    private static void SetFileTime(string filePath, DateTime creationTime, DateTime writeTime, DateTime accessTime,
+      bool addRandomTime) {
+
+      if (creationTime == DateTime.MaxValue && writeTime == DateTime.MaxValue && accessTime == DateTime.MaxValue) {
+
+        //try to set from file name
+        var fileName = Path.GetFileName(filePath);
+        //2021-11-28_12-29-42 or 2021-11-28
+        var dtFormats = new []{"yyyy-MM-dd_HH-mm-ss", "yyyy-MM-dd"};
+        foreach (var dtFormat in dtFormats) {
+          var datePart = fileName.Substring(0, Math.Min(fileName.Length, dtFormat.Length));
+          if (!DateTime.TryParseExact(datePart, dtFormat, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces,
+                out var dt)) continue;
+          var time = CheckTimePart(dt, addRandomTime);
+          File.SetCreationTime(filePath, time);
+          File.SetLastWriteTime(filePath, time);
+          File.SetLastAccessTime(filePath, time);
+          break;
+        }
+      }
+      else {
+        //change
+        if (creationTime != DateTime.MinValue) {
+          var time = CheckTimePart(creationTime, addRandomTime);
+          File.SetCreationTime(filePath, time);
+        }
+        if (writeTime != DateTime.MinValue) {
+          var time = CheckTimePart(writeTime, addRandomTime);
+          File.SetLastWriteTime(filePath, time);
+        }
+        if (accessTime != DateTime.MinValue) {
+          var time = CheckTimePart(accessTime, addRandomTime);
+          File.SetLastAccessTime(filePath, time);
+        }
+      }
+
+      ConsoleEx.WriteInfo($"\t{filePath}: Created {File.GetCreationTime(filePath):s}, Modified: {File.GetLastWriteTime(filePath):s}, Accessed: {File.GetLastAccessTime(filePath):s}");
+    }
+    
   }
 }
